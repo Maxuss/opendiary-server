@@ -1,39 +1,48 @@
 pub mod err;
 pub mod io;
 
-use axum::{routing::get, routing::post, response::IntoResponse, Router, Json};
+use axum::{response::IntoResponse, routing::get, routing::post, Json, Router};
 
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::str::FromStr;
+use crate::err::{Error, Fine, Maybe, Nothing, Success};
+use crate::io::{create_io_file, read_io_file};
 use anyhow::bail;
 use axum::extract::Path;
 use axum::http::Uri;
 use axum::response::Response;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use tokio::time::Instant;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::str::FromStr;
 use tokio::fs::{create_dir, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::time::Instant;
 use uuid::Uuid;
-use crate::err::{Error, Fine, Maybe, Nothing, Success};
-use crate::io::{create_io_file, read_io_file};
 
 pub type RefStr = &'static str;
 pub type Payload<T> = axum::response::Result<Json<Maybe<T>>, Error>;
 
-pub fn proceeds<V>(value: V) -> Payload<V> where V: Serialize {
+pub fn proceeds<V>(value: V) -> Payload<V>
+where
+    V: Serialize,
+{
     Ok(Json(Fine(value)))
 }
 
-pub fn breaks<V>(err: Error) -> Payload<V> where V: Serialize {
+pub fn breaks<V>(err: Error) -> Payload<V>
+where
+    V: Serialize,
+{
     Ok(Json(Nothing(err)))
 }
 
-pub fn bails<V, S: Into<String>>(err: S) -> Payload<V> where V: Serialize {
+pub fn bails<V, S: Into<String>>(err: S) -> Payload<V>
+where
+    V: Serialize,
+{
     Ok(Json(Nothing(Error::InternalError {
         kind: "Unknown",
-        message: err.into()
+        message: err.into(),
     })))
 }
 
@@ -61,7 +70,7 @@ async fn create_user(Json(body): Json<CreateUser>) -> Payload<UserData> {
         name: body.name,
         creator: body.creator,
         uuid: uid,
-        created_at: Utc::now()
+        created_at: Utc::now(),
     };
     let bytes = postcard::to_allocvec(&data)?;
     let file = create_io_file(format!("diary/users/{}.dat", uid)).await?;
@@ -82,7 +91,7 @@ async fn test_err() -> Payload<String> {
 #[derive(Deserialize)]
 struct CreateUser {
     name: String,
-    creator: String
+    creator: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,5 +99,5 @@ struct UserData {
     name: String,
     creator: String,
     uuid: Uuid,
-    created_at: DateTime<Utc>
+    created_at: DateTime<Utc>,
 }
