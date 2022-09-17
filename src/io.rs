@@ -1,11 +1,11 @@
 use anyhow::bail;
 use std::path::PathBuf;
-use serde::Deserialize;
+
 use tokio::fs::{create_dir_all, File};
 use tokio::io::{AsyncReadExt, BufReader};
 
 pub async fn prepare_io() {
-    let mut diary_dir = PathBuf::from("diary");
+    let diary_dir = PathBuf::from("diary");
     create_dir_all(diary_dir).await.unwrap();
 }
 
