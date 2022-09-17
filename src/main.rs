@@ -74,7 +74,9 @@ async fn create_user(Json(body): Json<CreateUser>) -> Payload<UserData> {
     };
     let bytes = postcard::to_allocvec(&data)?;
     let file = create_io_file(format!("diary/users/{}.dat", uid)).await?;
-    BufWriter::new(file).write_all(&bytes).await?;
+    let mut writer = BufWriter::new(file);
+    writer.write_all(&bytes).await?;
+    writer.flush().await?;
     proceeds(data)
 }
 
