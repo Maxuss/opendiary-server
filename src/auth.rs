@@ -7,9 +7,9 @@ use pbkdf2::Pbkdf2;
 use rand::{Rng, thread_rng};
 use rand_core::OsRng;
 use serde::{Serialize, Deserialize};
-use sha2::digest::{Key, Mac};
+use sha2::digest::{Mac};
 use sha2::{Sha256, Digest};
-use sqlx::Error::ColumnNotFound;
+
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::{breaks, Error, Payload, proceeds};

@@ -2,7 +2,7 @@
 
 use crate::{IntoResponse, Uri};
 
-use axum::http::{Method, StatusCode};
+use axum::http::{StatusCode};
 use axum::response::Response;
 use axum::{BoxError, Json};
 use axum::extract::rejection::JsonRejection;
