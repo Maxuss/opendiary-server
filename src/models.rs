@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -17,5 +17,5 @@ pub struct StudentData {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct StudentSession {
     pub ssid: String,
-    pub expires_at: DateTime<Utc>
+    pub expires_at: DateTime<Utc>,
 }

@@ -2,23 +2,20 @@
 
 use crate::{IntoResponse, Uri};
 
-use axum::http::{StatusCode};
+use axum::extract::rejection::JsonRejection;
+use axum::http::StatusCode;
 use axum::response::Response;
 use axum::{BoxError, Json};
-use axum::extract::rejection::JsonRejection;
 
 use serde::Serialize;
 
-pub fn handle_json_error(
-    error: JsonRejection,
-) -> (StatusCode, Error) {
+pub fn handle_json_error(error: JsonRejection) -> (StatusCode, Error) {
     (
         StatusCode::BAD_REQUEST,
         Error::InvalidPayload {
-            message: format!("Invalid payload: {}", error)
-        }
+            message: format!("Invalid payload: {}", error),
+        },
     )
-
 }
 
 pub async fn handler404(path: Uri) -> (StatusCode, Json<Error>) {
@@ -47,7 +44,7 @@ where
 pub fn Nothing<V>(err: Error) -> Maybe<V> {
     Maybe::Nothing(Success {
         success: false,
-        value: err
+        value: err,
     })
 }
 
@@ -89,7 +86,7 @@ pub enum Error {
     UserAlreadyExists { message: String },
     UserDoesNotExist { message: String },
     AuthenticationFailure { message: String },
-    InvalidPayload { message: String }
+    InvalidPayload { message: String },
 }
 
 impl IntoResponse for Error {
@@ -145,7 +142,7 @@ impl From<BoxError> for Error {
     fn from(err: BoxError) -> Self {
         Self::InternalError {
             kind: "UnknownBoxed",
-            message: err.to_string()
+            message: err.to_string(),
         }
     }
 }
@@ -154,7 +151,7 @@ impl From<sqlx::Error> for Error {
     fn from(err: sqlx::Error) -> Self {
         Self::InternalError {
             kind: "DatabaseError",
-            message: err.to_string()
+            message: err.to_string(),
         }
     }
 }
@@ -163,7 +160,7 @@ impl From<pbkdf2::password_hash::Error> for Error {
     fn from(err: pbkdf2::password_hash::Error) -> Self {
         Self::InternalError {
             kind: "CryptoError",
-            message: err.to_string()
+            message: err.to_string(),
         }
     }
 }
