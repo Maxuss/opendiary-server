@@ -2,13 +2,24 @@
 
 use crate::{IntoResponse, Uri};
 
-use axum::http::StatusCode;
+use axum::http::{Method, StatusCode};
 use axum::response::Response;
-use axum::Json;
+use axum::{BoxError, Json};
+use axum::extract::rejection::JsonRejection;
 
 use serde::Serialize;
 
+pub fn handle_json_error(
+    error: JsonRejection,
+) -> (StatusCode, Error) {
+    (
+        StatusCode::BAD_REQUEST,
+        Error::InvalidPayload {
+            message: format!("Invalid payload: {}", error)
+        }
+    )
 
+}
 
 pub async fn handler404(path: Uri) -> (StatusCode, Json<Error>) {
     (
@@ -22,7 +33,7 @@ pub async fn handler404(path: Uri) -> (StatusCode, Json<Error>) {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Maybe<T> {
-    Nothing(Error),
+    Nothing(Success<Error>),
     Fine(Success<T>),
 }
 
@@ -34,7 +45,10 @@ where
 }
 
 pub fn Nothing<V>(err: Error) -> Maybe<V> {
-    Maybe::Nothing(err)
+    Maybe::Nothing(Success {
+        success: false,
+        value: err
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -71,6 +85,11 @@ pub enum Error {
     NotFound { message: String },
     InternalError { kind: &'static str, message: String },
     Unknown { message: String },
+    MissingCredentials { message: String },
+    UserAlreadyExists { message: String },
+    UserDoesNotExist { message: String },
+    AuthenticationFailure { message: String },
+    InvalidPayload { message: String }
 }
 
 impl IntoResponse for Error {
@@ -118,6 +137,33 @@ impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Self {
         Self::Unknown {
             message: err.to_string(),
+        }
+    }
+}
+
+impl From<BoxError> for Error {
+    fn from(err: BoxError) -> Self {
+        Self::InternalError {
+            kind: "UnknownBoxed",
+            message: err.to_string()
+        }
+    }
+}
+
+impl From<sqlx::Error> for Error {
+    fn from(err: sqlx::Error) -> Self {
+        Self::InternalError {
+            kind: "DatabaseError",
+            message: err.to_string()
+        }
+    }
+}
+
+impl From<pbkdf2::password_hash::Error> for Error {
+    fn from(err: pbkdf2::password_hash::Error) -> Self {
+        Self::InternalError {
+            kind: "CryptoError",
+            message: err.to_string()
         }
     }
 }
