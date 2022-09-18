@@ -13,7 +13,39 @@ use sqlx::Error::ColumnNotFound;
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::{breaks, Error, Payload, proceeds};
-use crate::models::StudentData;
+use crate::models::{StudentData, StudentSession};
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum AuthResult {
+    Success,
+    SessionExpired,
+    InvalidSession,
+}
+
+pub async fn ensure_authenticated(session_id: Option<String>, pg: &PgPool) -> anyhow::Result<AuthResult, Error> {
+    return if let None = session_id {
+        Ok(AuthResult::InvalidSession)
+    } else if let Some(ssid) = session_id {
+        if ssid.is_empty() {
+            return Ok(AuthResult::InvalidSession)
+        }
+        let session = sqlx::query_as::<_, StudentSession>("SELECT * FROM user_sessions WHERE ssid = $1 LIMIT 1").bind(&ssid).fetch_optional(pg).await.map_err(Error::from)?;
+
+        if let Some(session) = session {
+            let expires_at = session.expires_at;
+            if Utc::now().gt(&expires_at) {
+                sqlx::query("DELETE FROM user_sessions WHERE ssid = $1").bind(&ssid).execute(pg).await.map_err(Error::from)?;
+                return Ok(AuthResult::InvalidSession)
+            }
+            Ok(AuthResult::Success)
+        } else {
+            Ok(AuthResult::InvalidSession)
+        }
+    } else {
+        Ok(AuthResult::InvalidSession)
+    }
+}
 
 pub async fn login_student(
     Json(login): Json<LoginStudent>,
