@@ -5,21 +5,56 @@ use pbkdf2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, Salt
 use pbkdf2::Pbkdf2;
 use rand::{thread_rng, Rng};
 use rand_core::OsRng;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::ops::Add;
+use serde_with::skip_serializing_none;
 
 use crate::models::{StudentData, StudentSession};
 use crate::{breaks, proceeds, Error, Payload};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, Eq, Ord, PartialOrd, PartialEq)]
 pub enum AuthResult {
     Success,
     SessionExpired,
     InvalidSession,
+}
+
+impl Serialize for AuthResult {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        serializer.serialize_str(&format!("{:?}", self))
+    }
+}
+
+pub async fn drop_session(
+    Json(EnsureSession { ssid, value }): Json<EnsureSession<DropSession>>,
+    Extension(pg): Extension<PgPool>
+) -> Payload<SessionBasedResponse<SessionDropped>> {
+    let auth_result = ensure_authenticated(Some(ssid.clone()), &pg).await?;
+    if auth_result != AuthResult::Success {
+        return proceeds(SessionBasedResponse {
+            auth_result,
+            value: None
+        })
+
+    }
+
+    let affected = sqlx::query("DELETE FROM user_sessions WHERE ssid = $1 AND belongs_to = $2")
+        .bind(&ssid)
+        .bind(&value.uuid)
+        .execute(&pg)
+        .await
+        .map_err(Error::from)?;
+
+    return proceeds(SessionBasedResponse {
+        auth_result,
+        value: Some(SessionDropped {
+            student_id: value.uuid,
+            drop_success: affected.rows_affected() >= 1
+        })
+    })
 }
 
 pub async fn ensure_authenticated(
@@ -92,6 +127,21 @@ pub async fn login_student(
         });
     }
 
+    let existing_session = sqlx::query_as::<_, StudentSession>("SELECT * FROM user_sessions WHERE belongs_to = $1 LIMIT 1")
+        .bind(login.uuid)
+        .fetch_optional(&pg)
+        .await
+        .map_err(Error::from)?;
+    
+    if let Some(existing) = existing_session {
+        // already authenticated
+        return proceeds(LoggedInStudent {
+            session_id: existing.ssid,
+            student_id: existing.belongs_to,
+            expires_at: existing.expires_at
+        })
+    }
+
     let ssid_bytes: [u8; 32] = thread_rng().gen();
 
     let mut hasher: Sha256 = Digest::new();
@@ -101,9 +151,10 @@ pub async fn login_student(
 
     let expires_in = Duration::days(2);
     let expires_at = Utc::now().add(expires_in);
-    let res = sqlx::query("INSERT INTO user_sessions VALUES($1, $2)")
+    let res = sqlx::query("INSERT INTO user_sessions VALUES($1, $2, $3)")
         .bind(&ssid)
         .bind(&expires_at)
+        .bind(&student.uuid)
         .execute(&pg)
         .await
         .map_err(Error::from)?;
@@ -215,6 +266,39 @@ pub async fn register_student(
             student_id: user.uuid,
         })
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionDropped {
+    pub student_id: Uuid,
+    pub drop_success: bool
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DropSession {
+    pub uuid: Uuid
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[skip_serializing_none]
+pub struct SessionBasedResponse<V> {
+    pub auth_result: AuthResult,
+    #[serde(flatten)]
+    pub value: Option<V>
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EnsureSession<V> {
+    pub ssid: String,
+    #[serde(flatten)]
+    pub value: V
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionAlreadyExists {
+    status: String,
+    #[serde(flatten)]
+    session: LoggedInStudent
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

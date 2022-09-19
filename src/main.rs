@@ -58,7 +58,8 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/student/register", post(auth::register_student))
         .route("/student/get_id/:username", get(auth::query_user_id))
-        .route("/student/login", post(auth::login_student))
+        .route("/session/login", post(auth::login_student))
+        .route("/session/drop", post(auth::drop_session))
         .fallback(err::handler404.into_service())
         .layer(Extension(pool));
 

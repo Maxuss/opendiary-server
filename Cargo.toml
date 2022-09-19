@@ -12,6 +12,7 @@ pbkdf2 = "0.11.0"
 sha2 = "0.10.6"
 rand = "0.8.5"
 hex = "0.4.3"
+serde_with = "1.14.0"
 
 [dependencies.rand_core]
 version = "0.6.4"

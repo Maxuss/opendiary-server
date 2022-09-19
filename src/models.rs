@@ -17,5 +17,6 @@ pub struct StudentData {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct StudentSession {
     pub ssid: String,
+    pub belongs_to: Uuid,
     pub expires_at: DateTime<Utc>,
 }
